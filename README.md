@@ -57,6 +57,7 @@
       background-color: var(--bg-canvas);
       color: #1E1D1B;
       font-family: 'Plus Jakarta Sans', sans-serif;
+      min-width: 320px;
       overflow-x: hidden;
       background-image:
         radial-gradient(rgba(232, 93, 63, 0.045) 1px, transparent 0),
@@ -129,6 +130,49 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #B5AFA2;
     }
+
+    @media (max-width: 640px) {
+      header .flex.flex-wrap.items-center.gap-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      #btn-open-new-modal,
+      #btn-crown-week,
+      #btn-reset-demo {
+        min-height: 44px;
+        justify-content: center;
+      }
+
+      #btn-reset-demo {
+        grid-column: 1 / -1;
+      }
+
+      [data-cat-tab] {
+        min-height: 40px;
+      }
+
+      #toast-container {
+        right: 1rem;
+        bottom: 1rem;
+        left: 1rem;
+      }
+
+      #toast-container > div {
+        justify-content: center;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col selection:bg-[#D99B26]/20 selection:text-[#1E1D1B]">
@@ -136,6 +180,41 @@
   <!-- Canvas fixo para celebração de confetes -->
   <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
 
+  <section id="room-entry" class="flex-1 flex items-center justify-center px-4 py-10 sm:px-6">
+    <div class="arena-card w-full max-w-xl rounded-3xl p-6 sm:p-10">
+      <div class="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#E7E5E0] bg-white text-3xl shadow-sm">
+        ⚔️
+      </div>
+      <p class="text-center text-[11px] font-bold uppercase tracking-[0.18em] text-[#B37B12]">Arena Semanal</p>
+      <h1 class="mt-2 text-center font-display text-3xl font-bold tracking-tight text-[#1E1D1B] sm:text-4xl">Duelo a Dois</h1>
+      <p class="mx-auto mt-3 max-w-md text-center text-sm leading-relaxed text-[#68645E]">
+        Cria uma sala para começar uma nova competição ou introduz o código de uma sala para continuar com os teus dados.
+      </p>
+
+      <div class="mt-8 grid gap-6 sm:grid-cols-2 sm:gap-4">
+        <div class="rounded-2xl border border-[#F0D699] bg-[#FCF6E8]/60 p-4 sm:p-5">
+          <h2 class="font-display text-lg font-bold text-[#1E1D1B]">Começar de novo</h2>
+          <p class="mt-1 text-xs leading-relaxed text-[#68645E]">Cria uma sala nova e partilha o código para jogar em conjunto.</p>
+          <button id="btn-create-room" type="button" class="mt-4 min-h-11 w-full rounded-xl bg-[#1E1D1B] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#32302C]">
+            Criar nova sala
+          </button>
+        </div>
+
+        <form id="form-entry-join" class="rounded-2xl border border-[#B7DDD8] bg-[#EAF5F3]/60 p-4 sm:p-5">
+          <label for="entry-room-code" class="font-display text-lg font-bold text-[#1E1D1B]">Já tens um código?</label>
+          <p class="mt-1 text-xs leading-relaxed text-[#68645E]">Introduz o código da sala que queres abrir.</p>
+          <input id="entry-room-code" type="text" maxlength="16" required autocomplete="off" placeholder="Ex.: DUELO-482"
+            class="mt-4 min-h-11 w-full rounded-xl border border-[#E7E5E0] bg-white px-3.5 py-2.5 font-display text-sm font-bold uppercase tracking-wider text-[#1E1D1B] outline-none focus:border-[#16796F]" />
+          <button type="submit" class="mt-2 min-h-11 w-full rounded-xl bg-[#16796F] px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-95">
+            Entrar na sala
+          </button>
+        </form>
+      </div>
+      <p id="entry-error" class="mt-4 hidden text-center text-sm font-semibold text-red-600" role="alert"></p>
+    </div>
+  </section>
+
+  <div id="app-shell" class="hidden min-h-screen flex-col">
   <!-- ========================================================================
        1. CABEÇALHO EDITORIAL & CONTROLOS DE SALA
        ======================================================================== -->
@@ -975,10 +1054,11 @@
         Duelo a Dois — Competição saudável que transforma a rotina em equipa.
       </p>
       <p>
-        Usa <strong class="text-[#1E1D1B]">Sincronizar a Dois</strong> para partilhar a mesma sala entre dois dispositivos.
+        Os dados são guardados automaticamente neste navegador. Usa <strong class="text-[#1E1D1B]">Sincronizar a Dois</strong> para partilhar a sala entre dispositivos.
       </p>
     </div>
   </footer>
+  </div>
 
   <!-- ========================================================================
        MODAL 1: ADICIONAR NOVA TAREFA, HÁBITO OU ATIVIDADE PERSONALIZADA
@@ -1429,10 +1509,28 @@
         };
       }
 
+      function createNewRoomState() {
+        const freshState = createInitialState();
+        freshState.logs = [];
+        freshState.champions = [];
+        Object.values(freshState.players).forEach((player) => {
+          player.streak = 0;
+          player.wins = 0;
+        });
+        freshState.tasks.forEach((task) => {
+          task.p1Count = 0;
+          task.p2Count = 0;
+        });
+        return freshState;
+      }
+
       /* ----------------------------------------------------------------------
          2. ESTADO EM MEMÓRIA & SINCRONIZAÇÃO FIREBASE FIRESTORE
          ---------------------------------------------------------------------- */
-      let state = createInitialState();
+      const STORAGE_PREFIX = 'duelo-a-dois:room:';
+      const LAST_ROOM_STORAGE_KEY = 'duelo-a-dois:last-room';
+      let roomCode = extractInitialRoomCode();
+      let state = (roomCode && loadLocalState(roomCode)) || createInitialState();
       let activeCategoryTab = 'all';
       let selectedRunPlayer = 'p1';
       let previousLeader = null; // 'p1' | 'p2' | 'tie'
@@ -1460,7 +1558,6 @@
       let auth = null;
       let currentUser = null;
       let appId = typeof __app_id !== 'undefined' ? __app_id : 'duelo-a-dois-app';
-      let roomCode = extractInitialRoomCode();
       let unsubscribeRoom = null;
       let isCloudConnected = false;
       let ignoreNextRemoteSnapshot = false;
@@ -1473,9 +1570,83 @@
             return match[1].toUpperCase();
           }
         } catch (e) {
-          // Ignorar erro de hash
+          console.warn('Não foi possível ler o código da sala no endereço:', e);
         }
-        return 'DUELO-' + Math.floor(100 + Math.random() * 900);
+
+        try {
+          const lastRoom = window.localStorage.getItem(LAST_ROOM_STORAGE_KEY);
+          const cleanLastRoom = lastRoom ? lastRoom.toUpperCase().replace(/[^A-Z0-9-]/g, '') : '';
+          return cleanLastRoom || null;
+        } catch (err) {
+          console.warn('Não foi possível recuperar a última sala guardada:', err);
+          return null;
+        }
+      }
+
+      function loadLocalState(code) {
+        try {
+          const saved = window.localStorage.getItem(`${STORAGE_PREFIX}${code}`);
+          if (!saved) return null;
+
+          const parsed = JSON.parse(saved);
+          if (
+            !parsed ||
+            typeof parsed.bet !== 'string' ||
+            !parsed.players ||
+            !parsed.players.p1 ||
+            !parsed.players.p2 ||
+            !Array.isArray(parsed.tasks) ||
+            !Array.isArray(parsed.logs) ||
+            !Array.isArray(parsed.champions)
+          ) {
+            throw new Error('O estado guardado da sala tem um formato inválido.');
+          }
+          return parsed;
+        } catch (err) {
+          console.warn(`Não foi possível recuperar os dados locais da sala ${code}:`, err);
+          return null;
+        }
+      }
+
+      function saveLocalState() {
+        if (!roomCode) return;
+        try {
+          window.localStorage.setItem(`${STORAGE_PREFIX}${roomCode}`, JSON.stringify(state));
+          window.localStorage.setItem(LAST_ROOM_STORAGE_KEY, roomCode);
+        } catch (err) {
+          console.warn('Não foi possível guardar os dados da sala no navegador:', err);
+          showToast('Não foi possível guardar os dados neste navegador.');
+        }
+      }
+
+      function createRoomCode() {
+        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+        return `DUELO-${suffix}`;
+      }
+
+      function showRoomApp() {
+        document.getElementById('room-entry').classList.add('hidden');
+        document.getElementById('app-shell').classList.remove('hidden');
+        document.getElementById('app-shell').classList.add('flex');
+      }
+
+      function enterRoom(code, createNew = false) {
+        const cleanCode = String(code || '')
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9-]/g, '');
+        const error = document.getElementById('entry-error');
+        if (!cleanCode) {
+          error.textContent = 'Introduz um código de sala válido.';
+          error.classList.remove('hidden');
+          return;
+        }
+
+        error.classList.add('hidden');
+        state = createNew ? createNewRoomState() : loadLocalState(cleanCode) || createInitialState();
+        showRoomApp();
+        connectToRoom(cleanCode, true);
+        initFirebaseSync();
       }
 
       function updateSyncIndicators(connected, statusText) {
@@ -1541,15 +1712,29 @@
           .toUpperCase()
           .replace(/[^A-Z0-9-]/g, '');
 
-        if (!cleanCode) return;
+        if (!cleanCode) {
+          showToast('Introduz um código de sala válido.');
+          return;
+        }
+
+        if (roomCode && roomCode !== cleanCode) {
+          saveLocalState();
+        }
         roomCode = cleanCode;
+        const savedState = loadLocalState(roomCode);
+        if (savedState) {
+          state = savedState;
+        } else if (!isJoiningExisting) {
+          state = createInitialState();
+        }
 
         try {
           window.history.replaceState(null, '', `#sala=${roomCode}`);
         } catch (e) {
-          // Ignorar se o iframe bloquear replaceState
+          console.warn('Não foi possível atualizar o endereço da sala:', e);
         }
 
+        saveLocalState();
         updateSyncIndicators(isCloudConnected, `Sala ${roomCode}`);
 
         // REGRA 3: Guardar operações Firestore com verificação de currentUser
@@ -1570,6 +1755,7 @@
           const snap = await getDoc(roomRef);
           if (snap.exists() && snap.data() && snap.data().payload) {
             state = snap.data().payload;
+            saveLocalState();
             renderAll();
             if (isJoiningExisting) {
               showToast(`Ligado à sala ${roomCode} com sucesso!`);
@@ -1592,6 +1778,7 @@
               }
               if (docSnap.exists() && docSnap.data() && docSnap.data().payload) {
                 state = docSnap.data().payload;
+                saveLocalState();
                 renderAll();
               }
             },
@@ -1625,6 +1812,7 @@
       function commitStateChange(celebrate = false) {
         const beforeLeader = previousLeader;
         renderAll();
+        saveLocalState();
         pushStateToCloud();
 
         // Verifica se houve mudança de liderança para lançar confetes!
@@ -2249,6 +2437,15 @@
       }
 
       function bindEvents() {
+        document.getElementById('btn-create-room').addEventListener('click', () => {
+          enterRoom(createRoomCode(), true);
+        });
+
+        document.getElementById('form-entry-join').addEventListener('submit', (e) => {
+          e.preventDefault();
+          enterRoom(document.getElementById('entry-room-code').value);
+        });
+
         // Fechar modais via botão X ou clique no fundo escuro
         document.querySelectorAll('[data-close-modal]').forEach((btn) => {
           btn.addEventListener('click', () => {
@@ -2661,7 +2858,7 @@
         });
 
         document.getElementById('btn-new-random-room').addEventListener('click', () => {
-          const freshCode = 'DUELO-' + Math.floor(100 + Math.random() * 900);
+          const freshCode = createRoomCode();
           connectToRoom(freshCode, true);
         });
 
@@ -2736,7 +2933,12 @@
         updateRunPreviewUI();
         updateTimerUI();
         renderAll();
-        initFirebaseSync();
+        if (roomCode) {
+          showRoomApp();
+          initFirebaseSync();
+        } else {
+          updateSyncIndicators(false, 'Escolhe ou cria uma sala para começar');
+        }
       });
     })();
   </script>
